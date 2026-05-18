@@ -355,10 +355,10 @@ import io
 import re
 import os
 
-TIME45 = np.arange(30.5, 1648.5+2, 2)[0::33]
-TIME50 = np.arange(30.5, 1518.5+2, 2)[0::30]
-TIME60 = np.arange(30.5, 1268.5+2, 2)[0::25]
-TIME70 = np.arange(30.5, 1088.5+2, 2)[0::22]
+TIME45 = np.arange(30.5, 1648.5+2, 2)[0::81] #[0::33]
+TIME50 = np.arange(30.5, 1518.5+2, 2)[0::75] #[0::30]
+TIME60 = np.arange(30.5, 1268.5+2, 2)[0::62] #[0::25]
+TIME70 = np.arange(30.5, 1088.5+2, 2)[0::53] #[0::22]
 
 # === Initialize Session State ===
 if 'interpolated_T' not in st.session_state:
