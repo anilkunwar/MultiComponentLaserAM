@@ -55,10 +55,10 @@ with st.sidebar:
 
     max_rows = st.slider(
         "Maximum plotted lines",
-        min_value=50,
-        max_value=3000,
-        value=300,
-        step=50
+        min_value=20,
+        max_value=500,
+        value=100,
+        step=10
     )
 
     random_seed = st.number_input("Random seed", value=42, step=1)
@@ -305,15 +305,15 @@ with tab1:
     def make_hover_text(row):
         return (
             f"<b>Line ID:</b> {int(row['Line_ID'])}<br>"
-            f"<b>Co:</b> {row['Co']:.6f}<br>"
-            f"<b>Cr:</b> {row['Cr']:.6f}<br>"
-            f"<b>Fe:</b> {row['Fe']:.6f}<br>"
-            f"<b>Ni:</b> {row['Ni']:.6f}<br>"
+            f"<b>Co:</b> {row['Co']:.2f}<br>"
+            f"<b>Cr:</b> {row['Cr']:.2f}<br>"
+            f"<b>Fe:</b> {row['Fe']:.2f}<br>"
+            f"<b>Ni:</b> {row['Ni']:.2f}<br>"
             f"<b>T:</b> {row['T']:.0f} K<br>"
-            f"<b>G_LIQ:</b> {row['G_LIQ'] / 1000:.6f} kJ/mol<br>"
-            f"<b>G_FCC:</b> {row['G_FCC'] / 1000:.6f} kJ/mol<br>"
-            f"<b>DeltaG:</b> {row['DeltaG'] / 1000:.6f} kJ/mol<br>"
-            f"<b>G_stable:</b> {row['G_stable'] / 1000:.6f} kJ/mol<br>"
+            f"<b>G_LIQ:</b> {row['G_LIQ'] / 1000:.2f} kJ/mol<br>"
+            f"<b>G_FCC:</b> {row['G_FCC'] / 1000:.2f} kJ/mol<br>"
+            f"<b>DeltaG:</b> {row['DeltaG'] / 1000:.2f} kJ/mol<br>"
+            f"<b>G_stable:</b> {row['G_stable'] / 1000:.2f} kJ/mol<br>"
             f"<b>Stable phase:</b> {row['Stable_Phase']}"
         )
 
@@ -330,14 +330,19 @@ with tab1:
         "DeltaG": 10
     }
 
-    x_vals = [x_positions[v] for v in variables]
+    x_vals = np.array([x_positions[v] for v in variables])
 
     T_min = df_parallel["T"].min()
     T_max = df_parallel["T"].max()
 
     fig = go.Figure()
 
+    # ========================================================
+    # Colored thermodynamic strands only
+    # These are the only hoverable/clickable objects.
+    # ========================================================
     for idx, row in df_norm.iterrows():
+
         T_value = df_parallel.loc[idx, "T"]
 
         if np.isclose(T_max, T_min):
@@ -347,38 +352,62 @@ with tab1:
 
         color = sample_colorscale("PiYG", 1.0 - T_norm)[0]
 
-        y_vals = [row[v] for v in variables]
+        y_vals = np.array([row[v] for v in variables])
+
+        # ----------------------------------------------------
+        # Add extra invisible hover points along each segment.
+        # Plotly hover is easier near points than only lines.
+        # ----------------------------------------------------
+        x_hover = []
+        y_hover = []
+
+        n_hover_points_per_segment = 12
+
+        for j in range(len(x_vals) - 1):
+            xs = np.linspace(x_vals[j], x_vals[j + 1], n_hover_points_per_segment)
+            ys = np.linspace(y_vals[j], y_vals[j + 1], n_hover_points_per_segment)
+
+            x_hover.extend(xs)
+            y_hover.extend(ys)
 
         fig.add_trace(
             go.Scatter(
-                x=x_vals,
-                y=y_vals,
-                mode="lines",
+                x=x_hover,
+                y=y_hover,
+                mode="lines+markers",
                 line=dict(
                     color=color,
                     width=line_width
                 ),
+                marker=dict(
+                    size=7,
+                    color=color,
+                    opacity=0.01
+                ),
                 opacity=line_opacity,
-                hoverinfo="text",
-                hovertext=df_parallel.loc[idx, "hover_text"],
-                customdata=[df_parallel.loc[idx, "Line_ID"]] * len(x_vals),
+                hovertemplate=df_parallel.loc[idx, "hover_text"] + "<extra></extra>",
+                customdata=[idx] * len(x_hover),
                 showlegend=False,
                 name=f"Line {idx}"
             )
         )
 
-    # Vertical axes
+    # ========================================================
+    # Vertical axes as shapes, not traces
+    # These will NOT be hoverable.
+    # ========================================================
     for var in variables:
         x = x_positions[var]
 
-        fig.add_trace(
-            go.Scatter(
-                x=[x, x],
-                y=[0, 1],
-                mode="lines",
-                line=dict(color="black", width=4),
-                hoverinfo="skip",
-                showlegend=False
+        fig.add_shape(
+            type="line",
+            x0=x,
+            x1=x,
+            y0=0,
+            y1=1,
+            line=dict(
+                color="black",
+                width=4
             )
         )
 
@@ -399,20 +428,27 @@ with tab1:
             font=dict(size=20, color=label_color)
         )
 
-    # Composition guide lines
+    # ========================================================
+    # Horizontal composition guide lines as shapes
+    # These also will NOT be hoverable.
+    # ========================================================
     for y in [0, 0.25, 0.50, 0.75, 1.0]:
-        fig.add_trace(
-            go.Scatter(
-                x=[-0.15, 3],
-                y=[y, y],
-                mode="lines",
-                line=dict(color="black", width=1.2, dash="dash"),
-                hoverinfo="skip",
-                showlegend=False
+        fig.add_shape(
+            type="line",
+            x0=-0.15,
+            x1=3,
+            y0=y,
+            y1=y,
+            line=dict(
+                color="black",
+                width=1.2,
+                dash="dash"
             )
         )
 
+    # ========================================================
     # Axis min/max labels
+    # ========================================================
     for var in variables:
         x = x_positions[var]
         min_val = axis_limits[var]["min"]
@@ -444,7 +480,9 @@ with tab1:
             font=dict(size=13)
         )
 
+    # ========================================================
     # Composition reference labels
+    # ========================================================
     for label, y in zip(
         ["0.00", "0.10", "0.20", "0.30", "0.40"],
         [0, 0.25, 0.50, 0.75, 1.0]
@@ -457,7 +495,10 @@ with tab1:
             font=dict(size=15)
         )
 
+    # ========================================================
     # Temperature colorbar
+    # This is the only non-line trace, but it has no hover.
+    # ========================================================
     fig.add_trace(
         go.Scatter(
             x=[None],
@@ -514,64 +555,66 @@ with tab1:
         )
     )
 
-    hovered_points = plotly_events(
+    clicked_points = plotly_events(
         fig,
-        hover_event=True,
-        click_event=True,
+        hover_event=False,   # no Streamlit rerun on hover
+        click_event=True,    # print values only on click
         select_event=False,
         override_height=760,
         override_width="100%"
     )
 
-    st.subheader("Hovered / Selected Line Values")
+    # st.subheader("Clicked Strand Values")
 
-    if hovered_points:
-        curve_number = hovered_points[0]["curveNumber"]
+    # if clicked_points:
+    #     curve_number = clicked_points[0]["curveNumber"]
 
-        if curve_number < len(df_parallel):
-            selected_row = df_parallel.iloc[curve_number]
+    #     if curve_number < len(df_parallel):
 
-            col1, col2, col3, col4 = st.columns(4)
+    #         selected_row = df_parallel.iloc[curve_number]
 
-            col1.metric("Co", f"{selected_row['Co']:.6f}")
-            col2.metric("Cr", f"{selected_row['Cr']:.6f}")
-            col3.metric("Fe", f"{selected_row['Fe']:.6f}")
-            col4.metric("Ni", f"{selected_row['Ni']:.6f}")
+    #         col1, col2, col3, col4 = st.columns(4)
 
-            col5, col6, col7, col8 = st.columns(4)
+    #         col1.metric("Co", f"{selected_row['Co']:.2f}")
+    #         col2.metric("Cr", f"{selected_row['Cr']:.2f}")
+    #         col3.metric("Fe", f"{selected_row['Fe']:.2f}")
+    #         col4.metric("Ni", f"{selected_row['Ni']:.2f}")
 
-            col5.metric("T", f"{selected_row['T']:.0f} K")
-            col6.metric("G_LIQ", f"{selected_row['G_LIQ'] / 1000:.6f} kJ/mol")
-            col7.metric("G_FCC", f"{selected_row['G_FCC'] / 1000:.6f} kJ/mol")
-            col8.metric("DeltaG", f"{selected_row['DeltaG'] / 1000:.6f} kJ/mol")
+    #         col5, col6, col7, col8 = st.columns(4)
 
-            col9, col10 = st.columns(2)
+    #         col5.metric("T", f"{selected_row['T']:.0f} K")
+    #         col6.metric("G_LIQ", f"{selected_row['G_LIQ'] / 1000:.2f} kJ/mol")
+    #         col7.metric("G_FCC", f"{selected_row['G_FCC'] / 1000:.2f} kJ/mol")
+    #         col8.metric("DeltaG", f"{selected_row['DeltaG'] / 1000:.2f} kJ/mol")
 
-            col9.metric("Stable G", f"{selected_row['G_stable'] / 1000:.6f} kJ/mol")
-            col10.metric("Stable Phase", selected_row["Stable_Phase"])
+    #         col9, col10 = st.columns(2)
 
-            st.dataframe(
-                pd.DataFrame([selected_row[
-                    [
-                        "Co",
-                        "Cr",
-                        "Fe",
-                        "Ni",
-                        "T",
-                        "G_LIQ",
-                        "G_FCC",
-                        "DeltaG",
-                        "G_stable",
-                        "Stable_Phase"
-                    ]
-                ]]),
-                use_container_width=True
-            )
+    #         col9.metric("Stable G", f"{selected_row['G_stable'] / 1000:.2f} kJ/mol")
+    #         col10.metric("Stable Phase", selected_row["Stable_Phase"])
 
-        else:
-            st.info("Hover over a colored thermodynamic line to display values.")
-    else:
-        st.info("Hover over or click a colored line to display its values here.")
+    #         st.dataframe(
+    #             pd.DataFrame([selected_row[
+    #                 [
+    #                     "Co",
+    #                     "Cr",
+    #                     "Fe",
+    #                     "Ni",
+    #                     "T",
+    #                     "G_LIQ",
+    #                     "G_FCC",
+    #                     "DeltaG",
+    #                     "G_stable",
+    #                     "Stable_Phase"
+    #                 ]
+    #             ]]),
+    #             use_container_width=True
+    #         )
+
+    #     else:
+    #         st.info("Click a colored thermodynamic strand to display values.")
+
+    # else:
+    #     st.info("Hover shows the thermodynamic state near the mouse. Click a thin colored strand to print its values here.")
 
     if show_raw_data:
         st.subheader("Raw Loaded Data")
@@ -580,7 +623,6 @@ with tab1:
     if show_normalized_data:
         st.subheader("Normalized Plot Data")
         st.dataframe(df_norm, use_container_width=True)
-
 
 # ============================================================
 # TAB 2: Interpolated Gibbs Tensor
@@ -662,15 +704,15 @@ with tab2:
     fig3d = go.Figure()
 
     hover_text = (
-        "Co: %{customdata[0]:.4f}<br>"
-        "Cr: %{customdata[1]:.4f}<br>"
-        "Fe: %{customdata[2]:.4f}<br>"
-        "Ni: %{customdata[3]:.4f}<br>"
+        "Co: %{customdata[0]:.2f}<br>"
+        "Cr: %{customdata[1]:.2f}<br>"
+        "Fe: %{customdata[2]:.2f}<br>"
+        "Ni: %{customdata[3]:.2f}<br>"
         "T: %{customdata[4]:.0f} K<br>"
-        "G_LIQ: %{customdata[5]:.4f} kJ/mol<br>"
-        "G_FCC: %{customdata[6]:.4f} kJ/mol<br>"
-        "DeltaG: %{customdata[7]:.4f} kJ/mol<br>"
-        "G_stable: %{customdata[8]:.4f} kJ/mol<br>"
+        "G_LIQ: %{customdata[5]:.2f} kJ/mol<br>"
+        "G_FCC: %{customdata[6]:.2f} kJ/mol<br>"
+        "DeltaG: %{customdata[7]:.2f} kJ/mol<br>"
+        "G_stable: %{customdata[8]:.2f} kJ/mol<br>"
         "Stable phase: %{customdata[9]}<extra></extra>"
     )
 
@@ -704,7 +746,7 @@ with tab2:
                 marker=dict(
                     size=marker_size,
                     color=df_interp["G_stable"] / 1000,
-                    colorscale="Viridis",
+                    colorscale="plasma",
                     showscale=True,
                     colorbar=dict(title="G stable<br>[kJ/mol]")
                 ),
@@ -854,21 +896,21 @@ with tab2:
 
         c1, c2, c3, c4 = st.columns(4)
 
-        c1.metric("Co", f"{selected_row['Co']:.5f}")
-        c2.metric("Cr", f"{selected_row['Cr']:.5f}")
-        c3.metric("Fe", f"{selected_row['Fe']:.5f}")
-        c4.metric("Ni", f"{selected_row['Ni']:.5f}")
+        c1.metric("Co", f"{selected_row['Co']:.2f}")
+        c2.metric("Cr", f"{selected_row['Cr']:.2f}")
+        c3.metric("Fe", f"{selected_row['Fe']:.2f}")
+        c4.metric("Ni", f"{selected_row['Ni']:.2f}")
 
         c5, c6, c7, c8 = st.columns(4)
 
         c5.metric("T", f"{selected_row['T']:.0f} K")
-        c6.metric("G_LIQ", f"{selected_row['G_LIQ'] / 1000:.5f} kJ/mol")
-        c7.metric("G_FCC", f"{selected_row['G_FCC'] / 1000:.5f} kJ/mol")
-        c8.metric("DeltaG", f"{selected_row['DeltaG'] / 1000:.5f} kJ/mol")
+        c6.metric("G_LIQ", f"{selected_row['G_LIQ'] / 1000:.2f} kJ/mol")
+        c7.metric("G_FCC", f"{selected_row['G_FCC'] / 1000:.2f} kJ/mol")
+        c8.metric("DeltaG", f"{selected_row['DeltaG'] / 1000:.2f} kJ/mol")
 
         c9, c10 = st.columns(2)
 
-        c9.metric("Stable G", f"{selected_row['G_stable'] / 1000:.5f} kJ/mol")
+        c9.metric("Stable G", f"{selected_row['G_stable'] / 1000:.2f} kJ/mol")
         c10.metric("Stable Phase", selected_row["Stable_Phase"])
 
         st.dataframe(
@@ -886,8 +928,8 @@ with tab2:
 
     s1, s2, s3, s4 = st.columns(4)
 
-    s1.metric("Minimum stable G", f"{df_interp['G_stable'].min() / 1000:.3f} kJ/mol")
-    s2.metric("Maximum stable G", f"{df_interp['G_stable'].max() / 1000:.3f} kJ/mol")
+    s1.metric("Minimum stable G", f"{df_interp['G_stable'].min() / 1000:.2f} kJ/mol")
+    s2.metric("Maximum stable G", f"{df_interp['G_stable'].max() / 1000:.2f} kJ/mol")
     s3.metric("LIQUID region", f"{liq_fraction:.2f}%")
     s4.metric("FCC region", f"{fcc_fraction:.2f}%")
 
