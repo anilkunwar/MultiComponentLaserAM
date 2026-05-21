@@ -598,7 +598,7 @@ if sources:
                             'Difference': abs(liquid_val - fcc_val)
                         })
                     comp_df = pd.DataFrame(comp_data)
-                    st.dataframe(comp_df.style.format('{:.3f}'), use_container_width=True)
+                    st.dataframe(comp_df, use_container_width=True)  # values already formatted as floats
                     
                     st.caption("⚠️ Reminder: These are INITIAL mole fractions at t=0. Evolved composition fields are stored separately in COMP/ folder.")
                 
