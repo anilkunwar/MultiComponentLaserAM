@@ -543,13 +543,7 @@ if sources:
         'Initial Ni (L/S)': f"{s['compositions']['liquid'][3]:.2f}/{s['compositions']['fcc'][3]:.2f}",
     } for s in sources])
     
-    st.dataframe(df_sources.style.format({
-        'Speed (cm/s)': '{:.0f}',
-        'Initial Co (L/S)': '{:.2f}/{:.2f}',
-        'Initial Cr (L/S)': '{:.2f}/{:.2f}',
-        'Initial Fe (L/S)': '{:.2f}/{:.2f}',
-        'Initial Ni (L/S)': '{:.2f}/{:.2f}'
-    }), use_container_width=True)
+    st.dataframe(df_sources, use_container_width=True)
     
     # Shape consistency check
     shapes = [s['shape'] for s in sources]
